@@ -1,0 +1,4 @@
+package constants
+
+const AddressPrefix = 25 // B
+const CoinBaseHash = "0000000000000000000000000000000000000000000000000000000000000000"
