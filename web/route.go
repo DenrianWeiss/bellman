@@ -9,5 +9,5 @@ func RegisterRoute(r *gin.Engine) {
 	r.GET("/txs-by-num/:blockNumber", HandleGetTxByBlockNumber)
 	r.GET("/block-by-num/:blockNumber", HandleBlockByNumber)
 	r.GET("/txs/:address", HandleGetTxByAddress)
-
+	r.Any("/rpc", ProxyJsonRpc)
 }

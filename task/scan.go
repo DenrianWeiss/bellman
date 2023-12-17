@@ -11,6 +11,14 @@ import (
 var url string
 var auth string
 
+func GetUrl() string {
+	return url
+}
+
+func GetAuth() string {
+	return auth
+}
+
 func init() {
 	// Read Server Url and Auth from env
 	url = os.Getenv("RPC_URL")

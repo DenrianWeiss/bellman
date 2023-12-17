@@ -148,3 +148,45 @@ GET `/txs/:address`
 
 ```json
 ```
+
+## JSONRPC Proxy
+
+Any `/rpc` request will be proxied to `RPC_URL` with `RPC_AUTH` as basic auth, while only allow certain methods in the following list.
+```go
+var AllowedMethods = map[string]bool{
+	"getblock":              true,
+	"getbestblockhash":      true,
+	"getblockchaininfo":     true,
+	"getblockcount":         true,
+	"getblockfilter":        true,
+	"getblockhash":          true,
+	"getblockheader":        true,
+	"getblockstats":         true,
+	"getchaintips":          true,
+	"getchaintxstats":       true,
+	"getdifficulty":         true,
+	"getmempoolancestors":   true,
+	"getmempooldescendants": true,
+	"getmempoolentry":       true,
+	"getmempoolinfo":        true,
+	"getrawmempool":         true,
+	"gettxout":              true,
+	"gettxoutproof":         true,
+	"gettxoutsetinfo":       true,
+	"preciousblock":         true,
+	"pruneblockchain":       true,
+	"savemempool":           true,
+	"scantxoutset":          true,
+	"verifychain":           true,
+	"verifytxoutproof":      true,
+	"getpeerinfo":           true,
+	"createrawtransaction":  true,
+	"decoderawtransaction":  true,
+	"decodescript":          true,
+	"getrawtransaction":     true,
+	"sendrawtransaction":    true,
+	"testmempoolaccept":     true,
+	"validateaddress":       true,
+	"verifymessage":         true,
+}
+```
