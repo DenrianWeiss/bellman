@@ -1,11 +1,20 @@
 package web
 
 import (
+	"github.com/DenrianWeiss/bellman/constants"
 	"github.com/DenrianWeiss/bellman/model"
 	"github.com/DenrianWeiss/bellman/service/db"
 	"github.com/gin-gonic/gin"
+	"sort"
 	"strconv"
 )
+
+type ParsedTxRecords struct {
+	Height       int64  `json:"height"`
+	TxId         string `json:"tx_id"`
+	AmountChange int64  `json:"amount_change"`
+	Time         int64  `json:"time"`
+}
 
 func GetLatestBlock() int64 {
 	var status model.Status
@@ -130,7 +139,67 @@ func GetTxByAddress(address string) ([]model.Transactions, error) {
 func GetUtxoByAddress(address string) ([]model.TransactionOutput, error) {
 	var txOutputs []model.TransactionOutput
 	err := db.GetDb().Where("address = ? AND spent = ?", address, false).Find(&txOutputs).Error
+	// Add rawtx to txOutputs
+	for i, txOutput := range txOutputs {
+		var tx model.Transactions
+		err = db.GetDb().Where("tx_id = ?", txOutput.TxId).First(&tx).Error
+		if err != nil {
+			return nil, err
+		}
+		txOutputs[i].RawTx = tx.RawTx
+	}
 	return txOutputs, err
+}
+
+func GetRecentTxRecords(account string) ([]ParsedTxRecords, error) {
+	// First Get Tx by Address
+	txs, err := GetTxByAddress(account)
+	if err != nil {
+		return nil, err
+	}
+	// Sort Txs by BlockNumber
+	sort.Slice(txs, func(i, j int) bool {
+		return txs[i].BlockNumber > txs[j].BlockNumber
+	})
+	if len(txs) > 10 {
+		txs = txs[:10]
+	}
+	var records []ParsedTxRecords
+	for _, tx := range txs {
+		var record ParsedTxRecords
+		// Get Block for tx with blockNumber
+		block, err := GetBlockByNumber(tx.BlockNumber)
+		if err != nil {
+			return nil, err
+		}
+		record.Height = int64(block.Height)
+		record.Time = int64(block.Time)
+		record.TxId = tx.TxId
+		// Get All inputs' corresponding outputs
+		var totalCost int64
+		for _, input := range tx.Inputs {
+			if input.PrevTxId == constants.CoinBaseHash {
+				continue
+			}
+			var prevOutput model.TransactionOutput
+			err = db.GetDb().Where("tx_id = ? AND `index` = ?", input.PrevTxId, input.PrevOutIndex).First(&prevOutput).Error
+			if err != nil {
+				return nil, err
+			}
+			if prevOutput.Address == account {
+				totalCost += prevOutput.Value
+			}
+		}
+		// Get All outputs
+		for _, output := range tx.Outputs {
+			if output.Address == account {
+				totalCost -= output.Value
+			}
+		}
+		record.AmountChange = totalCost
+		records = append(records, record)
+	}
+	return records, nil
 }
 
 func HandleGetLatestBlock(ctx *gin.Context) {
@@ -197,6 +266,16 @@ func HandleGetTxByAddress(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(200, gin.H{"transactions": txs})
+}
+
+func HandleGetRecentTxs(ctx *gin.Context) {
+	account := ctx.Param("address")
+	records, err := GetRecentTxRecords(account)
+	if err != nil {
+		ctx.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	ctx.JSON(200, gin.H{"records": records})
 }
 
 func HandleGetUtxoByAddress(ctx *gin.Context) {

@@ -32,4 +32,5 @@ type TransactionOutput struct {
 	Address  string `gorm:"index,index:address_utxo" json:"address"`
 	Spent    bool   `gorm:"index:address_utxo" json:"spent"`
 	SpentTx  string `gorm:"column:spent_tx" json:"spent_tx"`
+	RawTx    string `gorm:"-" json:"rawtx"`
 }
