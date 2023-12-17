@@ -74,7 +74,10 @@ func UpdateTxInDb(blockTx model.Transactions) error {
 			if input.PrevTxId == constants.CoinBaseHash {
 				continue
 			}
-			err = tx.Model(&model.TransactionOutput{}).Where("tx_id = ? AND `index` = ?", input.PrevTxId, input.PrevOutIndex).Update("spent", true).Error
+			err = tx.Model(&model.TransactionOutput{}).Where("tx_id = ? AND `index` = ?", input.PrevTxId, input.PrevOutIndex).Updates(map[string]interface{}{
+				"spent":    true,
+				"spent_tx": blockTx.TxId,
+			}).Error
 			if err != nil {
 				return err
 			}

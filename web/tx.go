@@ -70,24 +70,14 @@ func GetTxByBlockNumber(blockNumber int64) ([]model.Transactions, error) {
 }
 
 func GetTxByAddress(address string) ([]model.Transactions, error) {
-	var txInputs []model.TransactionOutput
 	var txOutputs []model.TransactionOutput
 	var txs []model.Transactions
-	err := db.GetDb().Where("address = ?", address).Find(&txInputs).Error
+	var spentTxs = []string{}
+	var txIdMap = make(map[string]bool)
+	// Get all outputs with address
+	err := db.GetDb().Where("address = ?", address).Find(&txOutputs).Error
 	if err != nil {
 		return nil, err
-	}
-	err = db.GetDb().Where("address = ?", address).Find(&txOutputs).Error
-	if err != nil {
-		return nil, err
-	}
-	for _, txInput := range txInputs {
-		var tx model.Transactions
-		err = db.GetDb().Where("tx_id = ?", txInput.TxId).First(&tx).Error
-		if err != nil {
-			return nil, err
-		}
-		txs = append(txs, tx)
 	}
 	for _, txOutput := range txOutputs {
 		var tx model.Transactions
@@ -95,6 +85,28 @@ func GetTxByAddress(address string) ([]model.Transactions, error) {
 		if err != nil {
 			return nil, err
 		}
+		// Check if tx is already in txs
+		if _, ok := txIdMap[tx.TxId]; ok {
+			continue
+		}
+		txIdMap[tx.TxId] = true
+		tx.IsSpendTx = false
+		txs = append(txs, tx)
+		if txOutput.Spent && txOutput.SpentTx != "" {
+			spentTxs = append(spentTxs, txOutput.SpentTx)
+		}
+	}
+	// Scan spend txs
+	for _, spentTx := range spentTxs {
+		if _, ok := txIdMap[spentTx]; ok {
+			continue
+		}
+		var tx model.Transactions
+		err = db.GetDb().Where("tx_id = ?", spentTx).First(&tx).Error
+		if err != nil {
+			return nil, err
+		}
+		tx.IsSpendTx = true
 		txs = append(txs, tx)
 	}
 	// Add inputs and outputs to txs
@@ -113,6 +125,12 @@ func GetTxByAddress(address string) ([]model.Transactions, error) {
 		txs[i].Outputs = outputs
 	}
 	return txs, err
+}
+
+func GetUtxoByAddress(address string) ([]model.TransactionOutput, error) {
+	var txOutputs []model.TransactionOutput
+	err := db.GetDb().Where("address = ? AND spent = ?", address, false).Find(&txOutputs).Error
+	return txOutputs, err
 }
 
 func HandleGetLatestBlock(ctx *gin.Context) {
@@ -179,4 +197,14 @@ func HandleGetTxByAddress(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(200, gin.H{"transactions": txs})
+}
+
+func HandleGetUtxoByAddress(ctx *gin.Context) {
+	address := ctx.Param("address")
+	utxos, err := GetUtxoByAddress(address)
+	if err != nil {
+		ctx.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	ctx.JSON(200, gin.H{"utxos": utxos})
 }

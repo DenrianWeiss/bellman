@@ -11,6 +11,7 @@ type Transactions struct {
 	Inputs      []TransactionInputs `gorm:"foreignKey:TxId;references:TxId" json:"inputs"`
 	Outputs     []TransactionOutput `gorm:"foreignKey:TxId;references:TxId" json:"outputs"`
 	LockTime    int                 `gorm:"column:locktime" json:"locktime"`
+	IsSpendTx   bool                `gorm:"-" json:"is_spend_tx"`
 }
 
 type TransactionInputs struct {
@@ -30,4 +31,5 @@ type TransactionOutput struct {
 	PkScript string `gorm:"column:pk_script" json:"pk_script"`
 	Address  string `gorm:"index,index:address_utxo" json:"address"`
 	Spent    bool   `gorm:"index:address_utxo" json:"spent"`
+	SpentTx  string `gorm:"column:spent_tx" json:"spent_tx"`
 }
