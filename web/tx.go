@@ -196,7 +196,7 @@ func GetRecentTxRecords(account string) ([]ParsedTxRecords, error) {
 				totalCost -= output.Value
 			}
 		}
-		record.AmountChange = totalCost
+		record.AmountChange = -totalCost
 		records = append(records, record)
 	}
 	return records, nil
