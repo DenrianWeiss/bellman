@@ -6,5 +6,9 @@ import (
 )
 
 func GetChainParams() *chaincfg.Params {
-	return &chaincfg.Params{PubKeyHashAddrID: constants.AddressPrefix}
+	return &chaincfg.Params{
+		PubKeyHashAddrID: constants.AddressPrefix,
+		ScriptHashAddrID: constants.ScriptPrefix,
+		PrivateKeyID:     constants.WifPrefix,
+	}
 }
