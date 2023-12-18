@@ -11,5 +11,6 @@ func RegisterRoute(r *gin.Engine) {
 	r.GET("/txs/:address", HandleGetTxByAddress)
 	r.GET("/recent-txs/:address", HandleGetRecentTxs)
 	r.GET("/utxo/:address", HandleGetUtxoByAddress)
+	r.GET("/ping", HandlePing)
 	r.Any("/rpc", ProxyJsonRpc)
 }

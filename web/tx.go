@@ -287,3 +287,7 @@ func HandleGetUtxoByAddress(ctx *gin.Context) {
 	}
 	ctx.JSON(200, gin.H{"utxos": utxos})
 }
+
+func HandlePing(ctx *gin.Context) {
+	ctx.JSON(200, gin.H{"message": "pong"})
+}
