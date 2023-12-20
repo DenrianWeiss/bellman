@@ -1,6 +1,7 @@
 package scan
 
 import (
+	"errors"
 	"github.com/DenrianWeiss/bellman/constants"
 	"github.com/DenrianWeiss/bellman/model"
 	"github.com/DenrianWeiss/bellman/service/db"
@@ -9,6 +10,8 @@ import (
 	"gorm.io/gorm"
 	"log"
 )
+
+var BlockReorgError = errors.New("block reorg")
 
 func GetLatestBlock() int64 {
 	var status model.Status
@@ -40,13 +43,19 @@ func UpdateBlockInDb(block model.Block) error {
 	return db.GetDb().Transaction(func(tx *gorm.DB) error {
 		// First check if the block exists
 		var existingBlock model.Block
-		tx.Where("hash = ?", block.Hash).First(&existingBlock)
-		if existingBlock.Hash != "" {
-			// If it exists, end tx
-			return nil
+		err := tx.Where("hash = ?", block.Hash).First(&existingBlock).Error
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			// Check if block hash match.
+			if existingBlock.Hash == block.Hash {
+				// If it exists, end tx
+				return nil
+			} else {
+				// If it doesn't match, return error
+				return BlockReorgError
+			}
 		}
 		// If it doesn't exist, create it
-		err := tx.Create(&block).Error
+		err = tx.Create(&block).Error
 		if err != nil {
 			return err
 		}
@@ -59,8 +68,8 @@ func UpdateTxInDb(blockTx model.Transactions) error {
 	db.GetDb().Transaction(func(tx *gorm.DB) error {
 		// First check if the tx exists
 		var existingTx model.Transactions
-		tx.Where("tx_id = ?", blockTx.TxId).First(&existingTx)
-		if existingTx.TxId != "" {
+		e := tx.Where("tx_id = ?", blockTx.TxId).First(&existingTx).Error
+		if !errors.Is(e, gorm.ErrRecordNotFound) {
 			// If it exists, end tx
 			return nil
 		}
@@ -87,6 +96,44 @@ func UpdateTxInDb(blockTx model.Transactions) error {
 	return nil
 }
 
+func RollbackProcess(url, auth string, blockNum int64) {
+	// Search from blockNum to 1
+	for i := blockNum; i >= 1; i-- {
+		// Get Block
+		block, err := rpc.GetBlockHash(url, int(blockNum), auth)
+		if err != nil {
+			log.Printf("Error getting block %d: %s", blockNum, err.Error())
+			continue
+		}
+		// Get Block From DB
+		var dbBlock model.Block
+		db.GetDb().Where("hash = ?", block).First(&dbBlock)
+		// Compare hash with current hash
+		if dbBlock.Hash == block {
+			status := model.Status{}
+			db.GetDb().First(&status)
+			// Cascading delete block and tx from this block to current block
+			currentBlock := status.LastBlock
+			for j := currentBlock; j >= i; j-- {
+				// Delete block
+				db.GetDb().Where("height = ?", j).Delete(&model.Block{})
+				// Delete Txs and its input/output
+				var txs []model.Transactions
+				db.GetDb().Where("block_number = ?", j).Find(&txs)
+				for _, tx := range txs {
+					db.GetDb().Where("tx_id = ?", tx.TxId).Delete(&model.TransactionInputs{})
+					db.GetDb().Where("tx_id = ?", tx.TxId).Delete(&model.TransactionOutput{})
+					db.GetDb().Where("tx_id = ?", tx.TxId).Delete(&model.Transactions{})
+				}
+			}
+			log.Printf("Rollback to block %d", i)
+			// Update Latest Block
+			UpdateLatestBlock(i)
+			break
+		}
+	}
+}
+
 func ScanBlockRange(url, auth string, start, end int64) error {
 	// Get Every Block Using RPC
 	for i := start; i <= end; i++ {
@@ -106,6 +153,10 @@ func ScanBlockRange(url, auth string, start, end int64) error {
 			return err
 		}
 		err = UpdateBlockInDb(*blk)
+		if errors.Is(err, BlockReorgError) {
+			RollbackProcess(url, auth, i-1)
+			return nil
+		}
 		if err != nil {
 			return err
 		}
