@@ -7,8 +7,11 @@ import (
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	"log"
 	"strings"
 )
+
+var errNonStandardOutput = errors.New("non-standard or currently unsupported script")
 
 func DecodeTx(rawTx string) (*btcutil.Tx, error) {
 	// First decode the raw tx from hex
@@ -31,7 +34,8 @@ func DecodedOutPutToAddress(decodedOutput wire.TxOut) (string, error) {
 		return "", err
 	}
 	if len(address) == 0 {
-		return "", errors.New("no address found")
+		log.Printf("non-standard or currently unsupported script: %s", hex.EncodeToString(decodedOutput.PkScript))
+		return "", errNonStandardOutput
 	}
 	return address[0].String(), nil
 }
@@ -53,6 +57,9 @@ func TxToDbModel(rawTx string, blockNumber int64) (model.Transactions, error) {
 	}
 	for i, output := range tx.MsgTx().TxOut {
 		address, err := DecodedOutPutToAddress(*output)
+		if errors.Is(err, errNonStandardOutput) {
+			continue
+		}
 		if err != nil {
 			return model.Transactions{}, err
 		}
