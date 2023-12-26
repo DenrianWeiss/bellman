@@ -13,8 +13,7 @@ Bells Blockchain Indexer & UTXO scanner
 
 ## Notice
 
-1. This scanner does NOT handle reorgs. If a reorg happens, you need to reindex the whole chain.
-2. This scanner does NOT handle forks. If a fork happens, you need to reindex the whole chain.
+1. During re-orgs, tx outputs will temporarily disappear from the database, and will be re-added when the re-org is complete.
 
 ## Apis
 
